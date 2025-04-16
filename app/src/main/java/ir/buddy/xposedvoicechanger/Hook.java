@@ -18,6 +18,10 @@ public class Hook implements IXposedHookLoadPackage {
 
     private AudioTrack audioTrack;
 
+    static {
+        System.loadLibrary("native_lib");
+    }
+
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
