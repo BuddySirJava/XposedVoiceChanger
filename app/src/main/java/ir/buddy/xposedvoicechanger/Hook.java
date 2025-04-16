@@ -18,9 +18,10 @@ public class Hook implements IXposedHookLoadPackage {
 
     private AudioTrack audioTrack;
 
+
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        if (lpparam.packageName.equals("com.android.phone")) {
+        if (lpparam.packageName.equals("com.android.phone") || lpparam.packageName.equals("com.qualcomm.qti.telephonyservice") || lpparam.packageName.equals("com.audio.providers.telephony")) {
             XposedHelpers.findAndHookMethod(InCallService.class, "onCallAdded", Call.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(XC_MethodHook.MethodHookParam param) throws Throwable {
