@@ -9,7 +9,7 @@
 
 extern "C"
 JNIEXPORT jbyteArray JNICALL
-Java_src_main_java_ir_buddy_xposedvoicechanger_Hook_manipulateAudioData(JNIEnv *env, jobject /* this */, jbyteArray inputBuffer, jint length, jfloat pitchShift) {
+Java_ir_buddy_xposedvoicechanger_AudioProcessor_processAudio(JNIEnv *env, jobject thiz, jbyteArray inputBuffer, jint length, jfloat pitchShift) {
     if (inputBuffer == nullptr || length <= 0) {
         LOGI("Invalid input buffer or length");
         return nullptr;

@@ -16,7 +16,8 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class Hook implements IXposedHookLoadPackage {
 
-    private AudioTrack audioTrack;
+    private static AudioProcessor audioProcessor;
+    private static final float PITCH_SHIFT_VALUE = 0.7f;
 
     static {
         System.loadLibrary("native_lib");
@@ -26,51 +27,41 @@ public class Hook implements IXposedHookLoadPackage {
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (lpparam.packageName.equals("com.android.phone") || lpparam.packageName.equals("com.qualcomm.qti.telephonyservice") || lpparam.packageName.equals("com.audio.providers.telephony")) {
-            XposedHelpers.findAndHookMethod(InCallService.class, "onCallAdded", Call.class, new XC_MethodHook() {
+            if (audioProcessor == null) {
+                audioProcessor = new AudioProcessor();
+            }
+
+            XposedHelpers.findAndHookMethod(AudioRecord.class, "read", byte[].class, int.class, int.class, new XC_MethodHook() {
                 @Override
-                protected void beforeHookedMethod(XC_MethodHook.MethodHookParam param) throws Throwable {
-                    startAudioManipulation();
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (audioProcessor == null) {
+                        return;
+                    }
+
+                    // AudioRecord recordInstance = (AudioRecord) param.thisObject; // Example of getting instance
+
+                    byte[] buffer = (byte[]) param.args[0];
+                    int bytesRead = (int) param.getResult();
+
+                    if (bytesRead > 0 && buffer != null) {
+                        byte[] originalAudioData = new byte[bytesRead];
+                        System.arraycopy(buffer, 0, originalAudioData, 0, bytesRead);
+
+                        byte[] manipulatedData = audioProcessor.processAudio(originalAudioData, bytesRead, PITCH_SHIFT_VALUE);
+
+                        if (manipulatedData != null) {
+                            int bytesToWrite = Math.min(manipulatedData.length, buffer.length);
+                            System.arraycopy(manipulatedData, 0, buffer, 0, bytesToWrite);
+
+                            if (bytesToWrite < bytesRead && bytesToWrite < buffer.length) {
+                                for (int i = bytesToWrite; i < Math.min(bytesRead, buffer.length); i++) {
+                                    buffer[i] = 0; // Silence
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    @SuppressWarnings("deprecation")
-    private void startAudioManipulation() {
-        int sampleRate = 44100;
-        int channelConfig = AudioFormat.CHANNEL_OUT_MONO;
-        int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
-        int bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat);
-
-        AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate, channelConfig, audioFormat, bufferSize);
-        audioRecord.startRecording();
-
-        audioTrack = new AudioTrack(AudioManager.STREAM_VOICE_CALL, sampleRate, channelConfig, audioFormat, bufferSize, AudioTrack.MODE_STREAM);
-        audioTrack.play();
-
-        byte[] buffer = new byte[bufferSize];
-        while (true) {
-            int read = audioRecord.read(buffer, 0, buffer.length);
-            if (read > 0) {
-                byte[] manipulatedData = manipulateAudioData(buffer, read, 0.7f);
-                audioTrack.write(manipulatedData, 0, manipulatedData.length);
-            }
-        }
-    }
-
-    private byte[] manipulateAudioData(byte[] buffer, int read, float pitchShift) {
-        int newSize = (int) (read / pitchShift);
-        byte[] outputBuffer = new byte[newSize];
-
-        for (int i = 0; i < newSize; i++) {
-            int index = (int) (i * pitchShift);
-            if (index < read) {
-                outputBuffer[i] = buffer[index];
-            } else {
-                outputBuffer[i] = 0;
-            }
-        }
-        return outputBuffer;
     }
 }
